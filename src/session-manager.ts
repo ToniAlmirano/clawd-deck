@@ -486,7 +486,7 @@ export class SessionManager extends EventEmitter {
     const remove: string[] = [];
     for (const [id, session] of this.sessions) {
       // Cleanup: a session untouched for >2h is gone from the board entirely
-      // (Tony only re-invokes what he needs; stale slots just clutter).
+      // (users re-invoke what they need; stale slots just clutter).
       if (now - session.lastActivity > REMOVE_MS) {
         remove.push(id);
         continue;
