@@ -81,16 +81,18 @@ describe("SessionManager state transitions", () => {
     expect(m.activeSession?.state).toBe(State.PROCESSING);
   });
 
-  it("SessionEnd removes the session and emits a final sessionUpdated event", () => {
+  it("SessionEnd keeps the slot as DISCONNECTED (persisted board) and emits a final sessionUpdated event", () => {
     m = new SessionManager();
     m.handleEvent("SessionStart", { session_id: SESSION_A });
     expect(m.sessionCount).toBe(1);
 
     const updates: Array<HookEventName> = [];
     m.on("sessionUpdated", (_s, e) => updates.push(e));
-    m.handleEvent("SessionEnd", { session_id: SESSION_A });
+    const s = m.handleEvent("SessionEnd", { session_id: SESSION_A });
 
-    expect(m.sessionCount).toBe(0);
+    // Persisted board: the slot is kept (project stays visible) but marked OFFLINE.
+    expect(m.sessionCount).toBe(1);
+    expect(s?.state).toBe(State.DISCONNECTED);
     expect(updates.at(-1)).toBe("SessionEnd");
   });
 
@@ -278,17 +280,19 @@ describe("SessionManager pruning", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("prunes IDLE sessions after 60s of inactivity", () => {
+  it("fades IDLE sessions to OFFLINE (DISCONNECTED) after STALE_MS, keeping the slot", () => {
     const m = startedManager();
-    m.handleEvent("SessionStart", { session_id: SESSION_A });
+    const s = m.handleEvent("SessionStart", { session_id: SESSION_A });
     expect(m.sessionCount).toBe(1);
 
-    // Advance fake timer past STALE_MS (60s) plus a pruning interval tick (60s).
-    vi.advanceTimersByTime(61_000);
-    // Trigger the prune interval explicitly
+    // Advance past STALE_MS (30 min) plus a pruning interval tick. No live PID was
+    // resolved here, so the liveness guard doesn't apply and the slot fades.
+    vi.advanceTimersByTime(31 * 60_000);
     vi.advanceTimersByTime(60_000);
 
-    expect(m.sessionCount).toBe(0);
+    // Persisted board: slot is kept (not removed), just marked OFFLINE.
+    expect(m.sessionCount).toBe(1);
+    expect(s?.state).toBe(State.DISCONNECTED);
     m.stop();
   });
 

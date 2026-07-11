@@ -22,9 +22,12 @@ describe("state-machine.transition", () => {
     }
   });
 
-  it("DISCONNECTED is a sink for tool/prompt events", () => {
-    expect(transition(State.DISCONNECTED, "PreToolUse")).toBeNull();
-    expect(transition(State.DISCONNECTED, "UserPromptSubmit")).toBeNull();
+  it("DISCONNECTED revives on real activity (tool/prompt) but stays a sink otherwise", () => {
+    // A PreToolUse/UserPromptSubmit only fires from a LIVE process, so it must
+    // revive a session wrongly pruned to DISCONNECTED while merely idle.
+    expect(transition(State.DISCONNECTED, "PreToolUse")).toBe(State.PROCESSING);
+    expect(transition(State.DISCONNECTED, "UserPromptSubmit")).toBe(State.PROCESSING);
+    // Permission/elicitation/stop don't imply liveness on their own → still sinks.
     expect(transition(State.DISCONNECTED, "PermissionRequest")).toBeNull();
     expect(transition(State.DISCONNECTED, "Elicitation")).toBeNull();
     expect(transition(State.DISCONNECTED, "Stop")).toBeNull();

@@ -1,105 +1,120 @@
-# agentsd
+# Clawd Deck 🦀
 
-Stream Deck plugin for managing [Claude Code](https://claude.ai/code) sessions. Monitor session state, approve or deny permission requests, and control agents from hardware buttons.
+Turn your Elgato Stream Deck into a live control room for [Claude Code](https://claude.ai/code).
 
-<p align="center"><img src="docs/preview.png" alt="agentsd buttons on a Stream Deck" width="320"></p>
+A board of your running agents — each with an animated **Clawd** — plus usage gauges, an activity heatmap and task stats. Built for people who run several Claude Code sessions at once and want to know, at a glance, **which one needs them**.
+
+> **Unofficial.** Not affiliated with, endorsed by, or sponsored by Anthropic or Elgato. "Claude", "Claude Code" and the Clawd mascot belong to Anthropic; "Stream Deck" is Elgato's.
+
+---
+
+## What it does
+
+### 🦀 Session board
+Every active Claude Code session lands on its own key, automatically.
+
+| State | Looks like | Meaning |
+|---|---|---|
+| **WORKING** | calm blue, Clawd busy | It's running — leave it alone |
+| **YOUR TURN** | bright green, **pulses**, Clawd waves | It finished — go back to it |
+| **QUESTION** | purple, pulses | It's asking you something |
+| **PENDING** | dim green, calm | You already clicked it; it's waiting on your input |
+| **OFFLINE** | grey, Clawd asleep | Session ended (keeps the project name) |
+
+- **Priority ordering** — sessions that need you float to the top, working ones always stay visible, offline sinks. You never lose a busy agent behind a wall of finished ones.
+- **Click a key → jump to that exact terminal tab** (iTerm2, matched by TTY).
+- **Per-project animations** — each project gets its own Clawd working pose (thinking, hammering, sparkles, loading bar) so sessions are easy to tell apart.
+- **Auto-cleanup** — a session untouched for 2h leaves the board.
+
+### 📊 Usage gauges
+Reads the same data as Claude Code's `/usage`, straight from your local OAuth token (macOS Keychain — nothing is sent anywhere).
+
+- **Session (5h)** rolling window
+- **Weekly** (all models)
+- **Per-model weekly** limit (currently *Fable*) — the key renames itself to whatever model the API reports
+
+### 🔥 Activity & effort
+- **Week heatmap** — a GitHub-style contribution graph of your Claude Code activity, one key per day
+- **Week / Month / Level** — totals with dynamic goals, relative to your own record
+- **Gamification** — streak, personal record, today's goal
+- **Tasks** — pending / done today / done this week, from Apple Reminders
+
+---
 
 ## Requirements
 
-- **macOS 13+** (Windows support tracked separately; see issue for details)
-- **Stream Deck app 6.6+** plus a [Stream Deck](https://www.elgato.com/stream-deck) device
+- **macOS 13+**
+- **Stream Deck app 6.6+** and a [Stream Deck](https://www.elgato.com/stream-deck) device
 - **Node.js 20+**
 - **Claude Code** with [HTTP hooks](https://code.claude.com/docs/en/hooks-guide) support
-
-## How it works
-
-Claude Code HTTP hooks post events to a local server (`127.0.0.1:9200`). The plugin translates those events into session state on Stream Deck buttons and dials.
-
-```
-Claude Code hooks → HTTP server (:9200) → SessionManager → Stream Deck UI
-```
-
-`PermissionRequest` hooks hold the HTTP response open (up to 120 s) so you can approve or deny directly from a button press.
+- *(optional)* **iTerm2** — for click-to-jump-to-session
+- *(optional)* **Apple Reminders** — for the task tiles
 
 ## Install
 
 ```sh
-git clone https://github.com/paultyng/agentsd.git && cd agentsd
+git clone https://github.com/ToniAlmirano/clawd-deck.git && cd clawd-deck
 npm install
-npm install -g @elgato/cli   # one-time global; provides the `streamdeck` CLI used by `npm run link`/`dev`
+npm install -g @elgato/cli    # one-time; provides the `streamdeck` CLI
 npm run build
-npm run link                 # register plugin with Stream Deck
-npm run hooks:install        # add Claude Code HTTP hooks to ~/.claude/settings.json
+npm run link                  # register the plugin with Stream Deck
+npm run hooks:install         # add Claude Code HTTP hooks to ~/.claude/settings.json
 ```
 
-After linking, restart the Stream Deck app. The actions appear under "Claude Code" in the action list.
+Restart the Stream Deck app, then drag the actions onto your keys:
+
+| Action | Keys |
+|---|---|
+| **Session** | as many as you want agents visible |
+| **Session usage (5h)** / **Weekly usage** / **Per-model usage** | 2 adjacent keys each |
+| **Week (heatmap)** | 7 keys |
+| **Week · Month · Level** | 3 keys |
+| **Gamification** | 4 keys |
+| **Tasks (effort)** | 3 keys |
 
 ### Uninstall
 
 ```sh
-npm run hooks:uninstall      # remove hooks from ~/.claude/settings.json
-npm run unlink               # unregister plugin
+npm run hooks:uninstall
+npm run unlink
 ```
 
-## Configuration
+## How it works
 
-| Env var | Default | Effect |
-|---|---|---|
-| `AGENTSD_DEBUG` | unset | When `1`, the hook server exposes `GET /debug/sessions` returning a JSON snapshot of every tracked session. Used by the test suite; safe to enable locally for diagnostics. |
+```
+Claude Code HTTP hooks → local server (127.0.0.1:9200) → SessionManager → Stream Deck keys
+```
+
+No daemon, no PTY parsing, no cloud. Keys are drawn as flat SVG and animated by pushing frames (~9 fps) — the Stream Deck rasterizes SVG statically and `setImage` does not support animated GIFs, so a flipbook is the only way to animate.
+
+## Language
+
+English by default. The UI follows your **Stream Deck app's language**; add one by dropping a `<language>.json` next to the manifest. Spanish (`es.json`) is included — PRs for other languages welcome.
+
+## Permissions
+
+- **Keychain** — reads the Claude Code OAuth token to fetch usage. Never logged, never leaves your machine.
+- **Automation → iTerm2** — for click-to-jump.
+- **Automation → Reminders** — for the task tiles.
+
+macOS prompts the first time. All of it is optional: skip a permission and just don't use that action.
 
 ## Development
 
 ```sh
-npm run watch        # rebuild on file changes
-npm run dev          # Stream Deck dev mode (hot reload)
-npm run debug:hooks  # interactive hook event probe
+npm run watch        # rebuild on change
+npm test             # unit + integration
+npm run typecheck
 ```
 
-## Testing
+Reload after a code change: `kill -9 $(lsof -nP -iTCP:9200 -sTCP:LISTEN -t)` — Stream Deck respawns the plugin. **Manifest** changes need a full restart of the Stream Deck app.
 
-`npm test` runs unit, integration, and end-to-end layers. E2E uses [testagent](https://github.com/paultyng/testagent), a deterministic fake of the Claude Code CLI (no model or API key); E2E tests skip when it's not on PATH. `npm run test:coverage` writes a report under `coverage/`. CI runs everything on Linux, macOS, and Windows.
+## Credits
 
-## Actions
+- Built on top of **[agentsd](https://github.com/paultyng/agentsd)** by [Paul Tyng](https://github.com/paultyng) (MIT) — the session/hook foundation this grew from.
+- Clawd's sprite geometry comes from **[clawd-tank](https://github.com/marciogranzotto/clawd-tank)** by [Marcio Granzotto](https://github.com/marciogranzotto) (MIT).
+- **Clawd** is Anthropic's Claude Code mascot. This project is a fan-made, unofficial tribute.
 
-| Action | Type | Description |
-|--------|------|-------------|
-| **Session** | Button | Active session name, color-coded by state. Press to cycle sessions. Shows `(N/M)` counter. |
-| **Session Dial** | Encoder | Rotate to cycle sessions. Same info as Session button in dial feedback. |
-| **Status** | Button | Current state (`Working`, `Permission?`, `Question?`, `Idle`, `Error`), tool name, active work count (subagents + tasks). |
-| **Mode** | Button | Permission mode (`Default`, `Plan`, `Auto`, etc.) and model name. |
-| **Approve** | Button | Approve pending permission. Green when active, gray otherwise. |
-| **Always Allow** | Button | Approve and add session-scoped allow rule for the tool. Gold when active, gray otherwise. |
-| **Deny** | Button | Deny pending permission. Red when active, gray otherwise. |
-| **Stop** | Button | Send Ctrl+C interrupt to frontmost Ghostty terminal. Red when a session is active. |
-| **Focus** | Button | Bring Ghostty (or Claude Desktop) to foreground. |
+## License
 
-## Session states
-
-| State | Color | Meaning |
-|-------|-------|---------|
-| `IDLE` | Green | Session connected, waiting for input |
-| `PROCESSING` | Blue | Tool execution in progress |
-| `AWAITING_PERMISSION` | Gold | Permission prompt — approve or deny from Stream Deck |
-| `AWAITING_ELICITATION` | Purple | Claude is asking a question |
-| `DISCONNECTED` | Gray | No active session |
-
-## Key behaviors
-
-- **Auto-foreground**: Permission requests and elicitations automatically bring their session to the active slot.
-- **Permission queue**: Multiple sessions can have pending permissions simultaneously. They're foregrounded in arrival order; resolving one auto-advances to the next.
-- **Permission timeout**: 120s. Auto-denies if no response.
-- **Stale pruning**: Idle or disconnected sessions with no activity for 60s are automatically removed.
-- **Auto-create sessions**: If a hook event arrives for an unknown session (e.g., plugin restarted mid-session), the session is created as IDLE.
-- **Model backfill**: If the hook payload doesn't include a model, it's extracted from the session transcript.
-
-## Hook events
-
-The plugin registers hooks for all Claude Code lifecycle events:
-
-`SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `Stop`, `StopFailure`, `PermissionRequest`, `Notification`, `SubagentStart`, `SubagentStop`, `TaskCreated`, `TaskCompleted`, `Elicitation`, `ElicitationResult`
-
-Each event is posted to `http://localhost:9200/hooks/{EventName}`. The `hooks:install` script manages registration in `~/.claude/settings.json`.
-
-## Acknowledgments
-
-Inspired in part by [AgentDeck](https://github.com/puritysb/AgentDeck).
+[MIT](LICENSE) — the file keeps the original copyright (Paul Tyng) alongside this fork's.

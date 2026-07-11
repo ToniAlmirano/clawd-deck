@@ -1,7 +1,11 @@
 node_modules/
 dist/
 coverage/
-com.paultyng.agentsd.sdPlugin/bin/
 *.js.map
 memory/
-com.paultyng.agentsd.sdPlugin/logs/
+
+# Stream Deck plugin build output and rolling logs.
+# Generic patterns so a plugin-UUID rename can never accidentally start
+# committing logs — they contain local project paths and session ids.
+*.sdPlugin/bin/
+*.sdPlugin/logs/

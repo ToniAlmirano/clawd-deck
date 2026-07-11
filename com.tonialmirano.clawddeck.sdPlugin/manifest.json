@@ -1,0 +1,151 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "Actions": [
+    {
+      "UUID": "com.tonialmirano.clawddeck.week-heatmap",
+      "Name": "Week (heatmap)",
+      "Icon": "imgs/status",
+      "Tooltip": "Claude Code activity per day (Mon–Sun). Drag it onto 7 keys.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/status",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "UUID": "com.tonialmirano.clawddeck.period-totals",
+      "Name": "Week · Month · Level",
+      "Icon": "imgs/status",
+      "Tooltip": "WEEK (bar) · MONTH (bar) · LEVEL (ring). Drag it onto 3 keys.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/status",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "UUID": "com.tonialmirano.clawddeck.gamify",
+      "Name": "Gamification (streak/record/goal)",
+      "Icon": "imgs/status",
+      "Tooltip": "STREAK · TASKS TODAY · RECORD · TODAY'S GOAL. Drag it onto 4 keys.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/status",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "UUID": "com.tonialmirano.clawddeck.tasks",
+      "Name": "Tasks (effort)",
+      "Icon": "imgs/status",
+      "Tooltip": "Reminders: to do / done today / done this week. Drag it onto 3 keys.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/status",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "UUID": "com.tonialmirano.clawddeck.usage-session",
+      "Name": "Session usage (5h)",
+      "Icon": "imgs/status",
+      "Tooltip": "Usage of the rolling 5-hour window. Drag it onto 2 adjacent keys.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/status",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "UUID": "com.tonialmirano.clawddeck.usage-weekly",
+      "Name": "Weekly usage",
+      "Icon": "imgs/status",
+      "Tooltip": "Weekly usage (7 days). Drag it onto 2 adjacent keys.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/status",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "UUID": "com.tonialmirano.clawddeck.usage-fable",
+      "Name": "Per-model usage (weekly)",
+      "Icon": "imgs/status",
+      "Tooltip": "Weekly usage for the model-scoped limit. Drag it onto 2 adjacent keys.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/status",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "UUID": "com.tonialmirano.clawddeck.session",
+      "Name": "Session",
+      "Icon": "imgs/session",
+      "Tooltip": "Shows an active Claude Code session with an animated Clawd. Press to jump to its terminal tab.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/session",
+          "ShowTitle": true,
+          "TitleAlignment": "bottom",
+          "TitleColor": "#FFFFFF"
+        }
+      ]
+    }
+  ],
+  "Author": "Toni Altamirano",
+  "Category": "Claude Code",
+  "CategoryIcon": "imgs/plugin",
+  "CodePath": "bin/plugin.js",
+  "Description": "Claude Code on your Stream Deck: live session board with an animated Clawd, usage gauges (5h / weekly / per-model), activity heatmap and task stats.",
+  "Icon": "imgs/plugin",
+  "Name": "Clawd Deck",
+  "Nodejs": {
+    "Version": "20",
+    "Debug": "enabled"
+  },
+  "OS": [
+    {
+      "Platform": "mac",
+      "MinimumVersion": "13"
+    }
+  ],
+  "UUID": "com.tonialmirano.clawddeck",
+  "Version": "0.1.0.0",
+  "SDKVersion": 2,
+  "Software": {
+    "MinimumVersion": "6.6"
+  },
+  "URL": "https://github.com/ToniAlmirano/clawd-deck"
+}

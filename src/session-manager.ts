@@ -4,15 +4,34 @@ import { transition } from "./state-machine";
 import type { HookEventName, HookPayload, PendingPermission, SessionSnapshot, SessionState } from "./types";
 import { State } from "./types";
 import { extractModel } from "./util/transcript";
+import { itermTitleOverrides, ttysForPids } from "./util/iterm-title";
 
-/** Prune idle/disconnected sessions with no activity for 1 minute. */
-const STALE_MS = 60 * 1000;
-const STALE_PRUNE_STATES = new Set([State.IDLE, State.DISCONNECTED]);
+/**
+ * Persisted board: sessions are never removed. An idle slot with no activity for
+ * this long fades to OFFLINE (kept on the board, project stays visible) — a safety
+ * net for a missed SessionEnd. Real ends come via the SessionEnd hook.
+ */
+const STALE_MS = 30 * 60 * 1000;
+/** Sessions untouched (no hook events) for this long are removed from the board entirely. */
+const REMOVE_MS = 2 * 60 * 60 * 1000;
 const PRUNE_INTERVAL_MS = 60 * 1000;
+/** How often to re-read iTerm2 tab renames (tab.titleOverride) onto sessions. */
+const TITLE_REFRESH_MS = 8 * 1000;
+
+/** True if a process with this PID is still running (EPERM = exists but not ours). */
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
 
 export class SessionManager extends EventEmitter {
   private readonly sessions = new Map<string, SessionState>();
   private pruneTimer: ReturnType<typeof setInterval> | null = null;
+  private titleTimer: ReturnType<typeof setInterval> | null = null;
   private _activeIndex = 0;
   /** Session IDs with pending permissions, ordered by arrival. */
   private permissionQueue: string[] = [];
@@ -25,12 +44,18 @@ export class SessionManager extends EventEmitter {
 
   start(): void {
     this.pruneTimer = setInterval(() => this.pruneStale(), PRUNE_INTERVAL_MS);
+    this.titleTimer = setInterval(() => void this.refreshITermTitles(), TITLE_REFRESH_MS);
+    void this.refreshITermTitles();
   }
 
   stop(): void {
     if (this.pruneTimer) {
       clearInterval(this.pruneTimer);
       this.pruneTimer = null;
+    }
+    if (this.titleTimer) {
+      clearInterval(this.titleTimer);
+      this.titleTimer = null;
     }
     for (const session of this.sessions.values()) {
       this.clearPendingPermission(session);
@@ -51,6 +76,35 @@ export class SessionManager extends EventEmitter {
 
   get sessionCount(): number {
     return this.sessions.size;
+  }
+
+  /**
+   * Sessions ordered for the board: the ones that need attention or are active
+   * float to the top (always visible), OFFLINE sinks to the bottom (overflows
+   * off-screen if there are more sessions than keys). Stable within each rank,
+   * so cards only move when a session's state actually changes.
+   */
+  get orderedSessions(): SessionState[] {
+    const rank = (s: SessionState): number => {
+      const needsYou =
+        s.state === State.IDLE ||
+        s.state === State.AWAITING_PERMISSION ||
+        s.state === State.AWAITING_ELICITATION;
+      // Seen but still waiting for your input → "PENDIENTE", below the working ones.
+      if (needsYou && s.acknowledged) return 3;
+      switch (s.state) {
+        case State.AWAITING_PERMISSION:
+        case State.AWAITING_ELICITATION:
+          return 0; // PREGUNTA/PERMISO (unseen) — needs you now
+        case State.IDLE:
+          return 1; // TU TURNO (unseen) — done, waiting for you
+        case State.PROCESSING:
+          return 2; // working — always visible above seen/offline
+        default:
+          return 4; // OFFLINE — last
+      }
+    };
+    return [...this.sessions.values()].sort((a, b) => rank(a) - rank(b));
   }
 
   /**
@@ -83,11 +137,39 @@ export class SessionManager extends EventEmitter {
     return session;
   }
 
+  /** Mark a session as seen (user clicked its key) — moves TU TURNO/PREGUNTA → PENDIENTE. */
+  acknowledgeSession(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (!session || session.acknowledged) return;
+    session.acknowledged = true;
+    this.emit("sessionUpdated", session, "Notification");
+  }
+
   handleEvent(event: HookEventName, payload: HookPayload): SessionState | undefined {
     const id = payload.session_id;
     if (!id) return undefined;
 
     let session = this.sessions.get(id);
+
+    // Persisted board: a new session for a project that already has an OFFLINE slot
+    // revives that slot in place (same position) instead of adding a duplicate.
+    if (!session && payload.cwd && payload.cwd !== "unknown") {
+      for (const [oldId, s] of this.sessions) {
+        if (s.cwd === payload.cwd && s.state === State.DISCONNECTED) {
+          s.id = id;
+          s.state = State.IDLE;
+          s.acknowledged = false;
+          s.activeWork = 0;
+          s.lastError = null;
+          s.currentTool = null;
+          const entries = [...this.sessions.entries()];
+          this.sessions.clear();
+          for (const [k, v] of entries) this.sessions.set(k === oldId ? id : k, v);
+          session = s;
+          break;
+        }
+      }
+    }
 
     if (!session) {
       // Auto-create session on any event (handles missed SessionStart or plugin restart).
@@ -96,6 +178,8 @@ export class SessionManager extends EventEmitter {
         id,
         state: State.IDLE,
         cwd: payload.cwd ?? "unknown",
+        customTitle: null,
+        acknowledged: false,
         permissionMode: payload.permission_mode ?? "default",
         currentTool: null,
         activeWork: 0,
@@ -149,6 +233,10 @@ export class SessionManager extends EventEmitter {
       session.state = nextState;
     }
 
+    // A session that starts working again is a fresh cycle — clear "seen" so its
+    // next TU TURNO / PREGUNTA grabs your attention again.
+    if (session.state === State.PROCESSING) session.acknowledged = false;
+
     streamDeck.logger.info(`Event: ${event} session=${id} prev=${prevState} next=${session.state} hasPending=${!!session.pendingPermission} pid=${session.pid}`);
 
     // If we left AWAITING_PERMISSION via a non-resolution path (e.g. user approved
@@ -192,11 +280,19 @@ export class SessionManager extends EventEmitter {
         break;
       case "SessionEnd":
         this.clearPendingPermission(session);
-        // Emit before deleting so listeners can still read the session
+        // Persisted board: keep the slot as OFFLINE so the project stays visible.
+        session.state = State.DISCONNECTED;
+        session.currentTool = null;
+        session.activeWork = 0;
         this.emit("sessionUpdated", session, event);
-        this.sessions.delete(id);
-        this.clampActiveIndex();
         return session;
+    }
+
+    // Notify when an agent needs you: finished its turn (your turn) or asked a question.
+    if (prevState === State.PROCESSING && session.state === State.IDLE) {
+      this.emit("attention", session, "done");
+    } else if (session.state === State.AWAITING_ELICITATION && prevState !== State.AWAITING_ELICITATION) {
+      this.emit("attention", session, "ask");
     }
 
     this.emit("sessionUpdated", session, event);
@@ -362,23 +458,56 @@ export class SessionManager extends EventEmitter {
     }
   }
 
-  private pruneStale(): void {
-    const now = Date.now();
-    // Collect stale IDs first to avoid mutating during iteration
-    const staleIds: string[] = [];
-    for (const [id, session] of this.sessions) {
-      if (now - session.lastActivity > STALE_MS && STALE_PRUNE_STATES.has(session.state)) {
-        staleIds.push(id);
+  /**
+   * Re-read iTerm2 tab renames (tab.titleOverride) and apply them to sessions,
+   * matched by each agent PID's tty. A renamed tab shows that name on the deck;
+   * clearing the rename falls back to the project folder name. Best-effort: a no-op
+   * when iTerm2 isn't running or Automation permission is denied.
+   */
+  async refreshITermTitles(): Promise<void> {
+    const withPid = [...this.sessions.values()].filter((s) => s.pid != null);
+    if (withPid.length === 0) return;
+    const [ttyByPid, overrideByTty] = await Promise.all([
+      ttysForPids(withPid.map((s) => s.pid as number)),
+      itermTitleOverrides(),
+    ]);
+    for (const s of withPid) {
+      const tty = ttyByPid.get(s.pid as number);
+      const next = (tty && overrideByTty.get(tty)) || null;
+      if (next !== s.customTitle) {
+        s.customTitle = next;
+        this.emit("sessionUpdated", s, "Notification");
       }
     }
-    for (const id of staleIds) {
-      const session = this.sessions.get(id)!;
-      this.clearPendingPermission(session);
-      this.emit("sessionUpdated", { ...session, state: State.DISCONNECTED }, "SessionEnd");
-      this.sessions.delete(id);
+  }
+
+  private pruneStale(): void {
+    const now = Date.now();
+    const remove: string[] = [];
+    for (const [id, session] of this.sessions) {
+      // Cleanup: a session untouched for >2h is gone from the board entirely
+      // (Tony only re-invokes what he needs; stale slots just clutter).
+      if (now - session.lastActivity > REMOVE_MS) {
+        remove.push(id);
+        continue;
+      }
+      // Fade a finished (idle) session to OFFLINE once its process is actually gone.
+      // A live-but-idle session (waiting on the user) must stay visible, not gray out.
+      if (session.state === State.IDLE && now - session.lastActivity > STALE_MS) {
+        if (session.pid && isProcessAlive(session.pid)) continue;
+        this.clearPendingPermission(session);
+        session.state = State.DISCONNECTED;
+        session.currentTool = null;
+        session.activeWork = 0;
+        this.emit("sessionUpdated", session, "Stop");
+      }
     }
-    if (staleIds.length > 0) {
-      this.clampActiveIndex();
+    for (const id of remove) {
+      const s = this.sessions.get(id);
+      if (!s) continue;
+      this.clearPendingPermission(s);
+      this.emit("sessionUpdated", s, "SessionEnd");
+      this.sessions.delete(id);
     }
   }
 }

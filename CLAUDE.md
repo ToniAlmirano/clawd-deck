@@ -4,13 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-agentsd — a Stream Deck plugin for orchestrating local AI agent usage. Early stages.
+Clawd Deck — a Stream Deck plugin for Claude Code: an animated session board (Clawd),
+usage gauges, an activity heatmap, and task stats. Forked from
+[agentsd](https://github.com/paultyng/agentsd) (MIT, Paul Tyng).
+
+## Hard constraints (learned the hard way)
+
+- The Stream Deck SVG renderer supports **flat shapes only** — no nested `<svg>`, no `<g>`,
+  no `transform`. Draw with absolute-coordinate `<rect>`/`<circle>`/`<text>`.
+- `setImage` **does not animate GIFs** and rasterizes SVG statically. The only way to
+  animate is a flipbook: push a new static SVG each frame (~9 fps ticker in `actions/base.ts`).
+- **Never hard-code a home directory.** The plugin runs from inside its `.sdPlugin` folder,
+  so its logs are at `process.cwd()/logs`.
+- UI strings are **English keys** translated via `src/util/i18n.ts` (`t()`), with locales in
+  `<uuid>.sdPlugin/<language>.json`. A missing key falls back to the English key itself.
+- Manifest changes require a full restart of the Stream Deck app; code-only changes just need
+  the plugin process killed (`kill -9` the `:9200` listener).
 
 ## Build & Test
 
 Use npm scripts only — no Taskfile or Makefile.
 
-- `npm run build` — rollup build → `com.paultyng.agentsd.sdPlugin/bin/plugin.js`
+- `npm run build` — rollup build → `com.tonialmirano.clawddeck.sdPlugin/bin/plugin.js`
 - `npm run watch` — rollup watch mode
 - `npm run dev` — Stream Deck dev mode
 - `npm run link` / `npm run unlink` — link/unlink plugin in Stream Deck

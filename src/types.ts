@@ -57,6 +57,10 @@ export interface SessionState {
   id: string;
   state: State;
   cwd: string;
+  /** User's iTerm2 tab rename (tab.titleOverride); shown on the deck when set. */
+  customTitle: string | null;
+  /** True once the user clicked this session's key while it needed attention (→ "PENDIENTE"). */
+  acknowledged: boolean;
   permissionMode: string;
   currentTool: string | null;
   activeWork: number;

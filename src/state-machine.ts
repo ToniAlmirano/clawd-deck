@@ -18,7 +18,9 @@ export function transition(current: State, event: HookEventName): State | null {
 
     case "UserPromptSubmit":
     case "PreToolUse":
-      return current === State.DISCONNECTED ? null : State.PROCESSING;
+      // These only fire from a LIVE session, so revive even from DISCONNECTED
+      // (e.g. wrongly pruned as stale while merely idle, or after a plugin restart).
+      return State.PROCESSING;
 
     case "PostToolUse":
     case "PostToolUseFailure":

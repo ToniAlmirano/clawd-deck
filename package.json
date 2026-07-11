@@ -1,14 +1,14 @@
 {
-  "name": "agentsd",
+  "name": "clawd-deck",
   "version": "0.1.0",
-  "description": "Stream Deck plugin for Claude Code sessions",
+  "description": "Stream Deck plugin for Claude Code: animated session board (Clawd), usage gauges, activity heatmap and task stats.",
   "type": "module",
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c -w",
     "dev": "streamdeck dev",
-    "link": "streamdeck link com.paultyng.agentsd.sdPlugin",
-    "unlink": "streamdeck unlink com.paultyng.agentsd",
+    "link": "streamdeck link com.tonialmirano.clawddeck.sdPlugin",
+    "unlink": "streamdeck unlink com.tonialmirano.clawddeck",
     "hooks:install": "node -e \"import('./scripts/hooks.mjs').then(m => m.install())\"",
     "hooks:uninstall": "node -e \"import('./scripts/hooks.mjs').then(m => m.uninstall())\"",
     "debug:hooks": "node scripts/debug-hooks.mjs",
@@ -19,9 +19,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/paultyng/agentsd.git"
+    "url": "git+https://github.com/ToniAlmirano/clawd-deck.git"
   },
-  "author": "Paul Tyng",
+  "author": "Toni Altamirano",
   "license": "MIT",
   "dependencies": {
     "@elgato/streamdeck": "^2.0.4"
@@ -37,5 +37,17 @@
     "tslib": "^2.8.1",
     "typescript": "^6.0.2",
     "vitest": "^4.1.6"
-  }
+  },
+  "homepage": "https://github.com/ToniAlmirano/clawd-deck#readme",
+  "bugs": {
+    "url": "https://github.com/ToniAlmirano/clawd-deck/issues"
+  },
+  "keywords": [
+    "stream-deck",
+    "elgato",
+    "claude",
+    "claude-code",
+    "clawd",
+    "productivity"
+  ]
 }
