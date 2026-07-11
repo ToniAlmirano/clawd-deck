@@ -4,6 +4,7 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { HookServer } from "../src/hook-server";
+import { State } from "../src/types";
 import { SessionManager } from "../src/session-manager";
 import type { HookEventName } from "../src/types";
 
@@ -153,7 +154,11 @@ runE2E("E2E via testagent", () => {
     const exit = await harness.exitPromise;
     expect(exit).toBe(0);
     await waitForEvent(harness, "SessionEnd", sessionId);
-    expect(harness.manager.sessionCount).toBe(0);
+    // Persisted board: SessionEnd no longer removes the session — it keeps the
+    // slot and marks it OFFLINE, so the deck still shows which project it was.
+    // (pruneStale() is what eventually drops it, after REMOVE_MS of inactivity.)
+    expect(harness.manager.sessionCount).toBe(1);
+    expect(harness.manager.orderedSessions[0]?.state).toBe(State.DISCONNECTED);
   });
 
   it("fires PostToolUse when testagent runs /fake-tool + /fake-tool-result", async () => {
