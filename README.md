@@ -4,6 +4,16 @@ Turn your Elgato Stream Deck into a live control room for [Claude Code](https://
 
 A board of your running agents — each with an animated **Clawd** — plus usage gauges, an activity heatmap and task stats. Built for people who run several Claude Code sessions at once and want to know, at a glance, **which one needs them**.
 
+<p align="center">
+  <img src="docs/preview-board.png" alt="Session board — live Claude Code agents with an animated Clawd, plus usage gauges" width="500"><br>
+  <em>Session board: green pulses = an agent finished and waits for you; blue = still working</em>
+</p>
+
+<p align="center">
+  <img src="docs/preview-stats.png" alt="Stats page — weekly activity heatmap, totals, streak, record and daily goal" width="500"><br>
+  <em>Stats page: GitHub-style heatmap, totals with dynamic goals, streak & record</em>
+</p>
+
 > **Unofficial.** Not affiliated with, endorsed by, or sponsored by Anthropic or Elgato. "Claude", "Claude Code" and the Clawd mascot belong to Anthropic; "Stream Deck" is Elgato's.
 
 ---
